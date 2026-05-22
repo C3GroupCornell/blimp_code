@@ -338,6 +338,8 @@ class ControllerNode(Node):
                 # Publish message        
                 t = self.get_clock().now().nanoseconds/1e9
 
+                mtr[0] = mtr[1] = mtr[4] = mtr[5] = 0.0
+
                 msg = MotorMsg()
                 msg.id = blimp_id
                 msg.com = self.com_port

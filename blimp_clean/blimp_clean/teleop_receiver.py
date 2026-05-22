@@ -30,6 +30,9 @@ class TeleopReceiver(Node):
         self.blimps = {}
         self.prev_dpad_x = 0
         self.prev_dpad_y = 0
+        self.prev_button_y = 0
+        self.calibration_pubs = {}
+        self.calibrating = False
         self.create_subscription(Blimps, '/blimps_initialize',self.update_blimps_callback, 10)
         self.create_subscription(TeleopMode, '/teleop_mode',self.update_teleop_callback, 10)
 
@@ -83,8 +86,20 @@ class TeleopReceiver(Node):
                 self.get_logger().info(f"Switched to mode={new_mode}")
             self.prev_dpad_y = dpad_y
 
+            if button_y == 1 and self.prev_button_y != 1 and self.current_blimp is not None:
+                bid = self.current_blimp
+                if bid not in self.calibration_pubs:
+                    self.calibration_pubs[bid] = self.create_publisher(Bool, f'/agent_{bid}/start_calibration', 2)
+                cal_msg = Bool()
+                cal_msg.data = True
+                self.calibration_pubs[bid].publish(cal_msg)
+                self.calibrating = True
+                self.get_logger().info(f"Started calibration for blimp id={bid}")
+            self.prev_button_y = button_y
+
             if button_a == 1:
                 self.teleop = True
+                self.calibrating = False
                 targets = list(self.blimps.keys()) if self.current_mode == 1 else (
                     [self.current_blimp] if self.current_blimp is not None else []
                 )
@@ -104,9 +119,10 @@ class TeleopReceiver(Node):
                     msg.mode = 1
                     self.fly_to_goal_pub.publish(msg)
 
-            if self.teleop and (self.current_mode == 0 or self.current_mode == 1) and self.current_blimp is not None: # Manual mode
+            if self.teleop and not self.calibrating and (self.current_mode == 0 or self.current_mode == 1) and self.current_blimp is not None: # Manual mode
                 voltages = [0.0] * 6
                 vertical = -lj_vert/abs(lj_vert+1e-6) * min(abs(lj_vert),MAX_ALT_VOLTAGE) #dirn times magnitude
+                self.get_logger().info(f'Current voltage: {vertical}')
                 yaw = rj_horizontal/abs(rj_horizontal+1e-6) * min(abs(rj_horizontal),MAX_VOLTAGE)
                 forward = -rj_vert/abs(rj_vert+1e-6) * min(abs(rj_vert),MAX_VOLTAGE)
                 voltages[2] = vertical
@@ -129,7 +145,7 @@ class TeleopReceiver(Node):
                     for b in self.blimps:
                         self.motor_pub.publish(MotorMsg(id=b,com=self.blimps[b],voltages=Float32MultiArray(data=voltages)))
 
-            elif self.teleop and self.current_mode == 2 and self.current_blimp is not None: # Controlled mode
+            elif self.teleop and not self.calibrating and self.current_mode == 2 and self.current_blimp is not None: # Controlled mode
                 vertical = -lj_vert/abs(lj_vert+1e-6)
                 yaw = rj_horizontal/abs(rj_horizontal+1e-6)
                 forward = -rj_vert/abs(rj_vert+1e-6)

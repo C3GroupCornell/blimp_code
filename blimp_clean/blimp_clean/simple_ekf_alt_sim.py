@@ -14,9 +14,9 @@ g = 9.81
 # Net force balance: (rho_air - rho_He)*g*V - M_chassis*g = 0 at neutral buoyancy,
 # so the neutral volume is M_chassis / (rho_air - rho_He). We sit 0.2 m^3 above that.
 V_NEUTRAL = M_chassis / (RHO_AIR - RHO_HE)
-TRUE_PARAMS = [9.68, V_NEUTRAL + 0.02, 0.0714, 0.0430]
+TRUE_PARAMS = [9.68, V_NEUTRAL + 0.02, 0.714, 0.3430]
 
-use_v = True
+use_v = False
 
 us = []
 

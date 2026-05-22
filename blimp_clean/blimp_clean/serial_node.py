@@ -73,7 +73,7 @@ class SerialNode(Node):
         to_send = f'{uid},{msg_},{pwm_1},{pwm_2},{pwm_3},{pwm_4},{pwm_5},{pwm_6},{signal},\n' #Newline sends command
         to_send = to_send.encode('utf-8')
 
-        self.get_logger().info(f'Receiving commands at {round(1/(time.time()-self.last_t),2)}Hz')
+        # self.get_logger().info(f'Receiving commands at {round(1/(time.time()-self.last_t),2)}Hz')
         self.last_t = time.time()
         ser.write(to_send)
         ser.flush()  # flush buffer, commands send instantly and we do not want buildup

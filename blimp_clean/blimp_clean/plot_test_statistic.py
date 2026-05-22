@@ -29,6 +29,23 @@ except ImportError as exc:  # pragma: no cover
 
 from scipy.stats import chi2
 
+try:
+    from blimp_clean.blimp_clean.param_est_fixed_v import N_TS as _N_TS, MEASURE_V as _MEASURE_V
+    _DEFAULT_N_TS = _N_TS
+    _DEFAULT_DOF = 2 if _MEASURE_V else 1
+    _MEASURE_V_FLAG = _MEASURE_V
+except ImportError:
+    print('error')
+    _DEFAULT_N_TS = 10
+    _DEFAULT_DOF = 1
+    _MEASURE_V_FLAG = False
+
+
+def _build_R(measure_v: bool) -> np.ndarray:
+    if measure_v:
+        return np.diag([0.003**2, 0.075**2])
+    return np.array([[0.003**2]])
+
 
 def mean_chi2_bounds(n_ts: int, dof: int, alpha: float) -> tuple[float, float]:
     """
@@ -80,11 +97,7 @@ def plot_avg_test_statistic(
     )
     ax.legend(loc="upper right")
     ax.grid(True, alpha=0.3)
-
-    caption = (
-        rf"Band assumes N_ts i.i.d. χ²({dof}) summands; Σ ~ χ²({n_ts * dof}), "
-        rf"mean ∈ [{lo:.3f}, {hi:.3f}]. EKF innovations are correlated so this is approximate."
-    )
+    caption=""
     fig.text(0.02, 0.02, caption, fontsize=8, color="0.35")
 
     if save_path:
@@ -98,6 +111,22 @@ def plot_avg_test_statistic(
         plt.close(fig)
 
 
+def _print_last_P_and_R(data_dir: str, measure_v: bool) -> None:
+    covar_path = os.path.join(data_dir, "covariance_estimates.npy")
+    if os.path.isfile(covar_path):
+        covar = np.load(covar_path, allow_pickle=True)
+        last_P = np.asarray(covar[-1])
+        print("\nMost recent P (state covariance):")
+        print(last_P)
+    else:
+        print(f"\n[P] covariance_estimates.npy not found in {data_dir}")
+
+    R = _build_R(measure_v)
+    measurement_type = "z and zdot (measure_v=True)" if measure_v else "z only (measure_v=False)"
+    print(f"\nR used (measurement noise, {measurement_type}):")
+    print(R)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Plot rolling average EKF innovation statistic with χ²-derived bounds."
@@ -105,20 +134,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "npy_path",
         nargs="?",
-        default="/home/c3/blimp_code/blimp_clean/blimp_clean/agent_0/avg_test_statistics.npy",
+        default="/home/c3/blimp_code/agent_1/avg_test_statistics.npy",
         help="Path to avg_test_statistics.npy (saved by param_estimation)",
     )
     parser.add_argument(
         "--n-ts",
         type=int,
-        default=10,
-        help="Rolling window length N_ts (must match param_estimation)",
+        default=_DEFAULT_N_TS,
+        help=f"Rolling window length N_ts (default: {_DEFAULT_N_TS}, from param_est_fixed_v)",
     )
     parser.add_argument(
         "--dof",
         type=int,
-        default=2,
-        help="Innovation dimension m (1 if only z measured, 2 if z and v)",
+        default=_DEFAULT_DOF,
+        help=f"Innovation dimension m (default: {_DEFAULT_DOF}, from param_est_fixed_v MEASURE_V={_MEASURE_V_FLAG})",
     )
     parser.add_argument(
         "--alpha",
@@ -143,6 +172,10 @@ def main(argv: list[str] | None = None) -> int:
     if not os.path.isfile(path):
         print(f"Error: file not found: {path}", file=sys.stderr)
         return 1
+
+    measure_v = _MEASURE_V_FLAG
+    data_dir = os.path.dirname(os.path.abspath(path))
+    _print_last_P_and_R(data_dir, measure_v)
 
     avg = np.load(path)
     plot_avg_test_statistic(

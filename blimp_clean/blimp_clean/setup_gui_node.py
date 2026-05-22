@@ -21,6 +21,11 @@ from std_msgs.msg import Bool, Int32, Float32MultiArray
 from blimp_msgs.msg import MotorMsg, Blimps, TeleopMode, OptiTrackPose
 from blimp_clean.agent_manager import AgentManager
 
+try:
+    from blimp_clean.param_est_fixed_v import ESTIMATE_MODE as _ESTIMATE_MODE
+except ImportError:
+    _ESTIMATE_MODE = 'Kv_Cd'
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
@@ -384,13 +389,15 @@ class SetupGuiWindow(QMainWindow):
 
         for aid, state in state_data.items():
             n = len(state)
-            if n not in (4, 5):
+            if n not in (3, 4, 5):
                 continue
             covar = covar_data.get(aid, [])
             if n == 5 and len(covar) >= 25:
                 sigma = [np.sqrt(max(covar[i * 5 + i], 0.0)) for i in range(5)]
             elif n == 4 and len(covar) >= 16:
                 sigma = [np.sqrt(max(covar[i * 4 + i], 0.0)) for i in range(4)]
+            elif n == 3 and len(covar) >= 9:
+                sigma = [np.sqrt(max(covar[i * 3 + i], 0.0)) for i in range(3)]
             else:
                 sigma = [0.0] * n
             if aid not in self._calib_history:
@@ -420,18 +427,42 @@ class SetupGuiWindow(QMainWindow):
                 return len(h['state'][-1])
             return h.get('n_state', 5)
 
-        show_v = any(
+        has_5_state = any(
             h['state'] and len(h['state'][-1]) == 5
             for h in self._calib_history.values()
         )
-        self._calib_axes[2].set_visible(show_v)
+
+        if has_5_state:
+            # Full 5-state [z, ż, V, Kv, Cd]: all subplots visible
+            self._calib_axes[2].set_visible(True)
+            self._calib_axes[3].set_visible(True)
+            self._calib_axes[4].set_visible(True)
+            _PLOT_ROWS_4 = ((0, 0), (1, 1), (2, 3), (3, 4))  # fallback
+        elif _ESTIMATE_MODE == 'Kv_V':
+            # 4-state [z, ż, Kv, V]: show V (row 2), hide Kv (row 3) label N/A, hide Cd (row 4)
+            self._calib_axes[2].set_visible(True)
+            self._calib_axes[3].set_visible(True)
+            self._calib_axes[4].set_visible(False)
+            _PLOT_ROWS_4 = ((0, 0), (1, 1), (2, 3), (3, 2))
+        elif _ESTIMATE_MODE == 'Cd':
+            # 3-state [z, ż, Cd]: hide V (row 2), hide Kv (row 3), show Cd (row 4)
+            self._calib_axes[2].set_visible(False)
+            self._calib_axes[3].set_visible(False)
+            self._calib_axes[4].set_visible(True)
+            _PLOT_ROWS_4 = ((0, 0), (1, 1), (2, 3), (3, 4))  # unused for n=3
+        else:
+            # 4-state [z, ż, Kv, Cd]: hide V (row 2), show Kv (row 3) and Cd (row 4)
+            self._calib_axes[2].set_visible(False)
+            self._calib_axes[3].set_visible(True)
+            self._calib_axes[4].set_visible(True)
+            _PLOT_ROWS_4 = ((0, 0), (1, 1), (2, 3), (3, 4))
+
+        # 3-state Cd mode: [z, ż, Cd] -> subplot rows 0, 1, 4
+        _PLOT_ROWS_3 = ((0, 0), (1, 1), (2, 4))
 
         _STATE_LABELS = ["z (m)", "ż (m/s)", "V (m³)", "Kv", "Cd"]
         for ax, label in zip(self._calib_axes, _STATE_LABELS):
             ax.set_ylabel(label)
-
-        # 4-state layout: [z, ż, Kv, Cd] -> subplot rows 0,1,3,4 (skip V)
-        _PLOT_ROWS_4 = ((0, 0), (1, 1), (2, 3), (3, 4))
 
         for aid, hist in self._calib_history.items():
             if not hist['state']:
@@ -442,6 +473,8 @@ class SetupGuiWindow(QMainWindow):
             xs = np.arange(len(states))
             if n == 5:
                 rows = [(i, i) for i in range(5)]
+            elif n == 3:
+                rows = _PLOT_ROWS_3
             else:
                 rows = _PLOT_ROWS_4
             for si, ri in rows:
@@ -457,7 +490,11 @@ class SetupGuiWindow(QMainWindow):
         if len(self._calib_history) > 1:
             self._calib_axes[0].legend(fontsize=7, loc="upper right")
 
-        self._calib_axes[-1].set_xlabel("Sample")
+        last_visible = next(
+            (ax for ax in reversed(self._calib_axes) if ax.get_visible()),
+            self._calib_axes[-1],
+        )
+        last_visible.set_xlabel("Sample")
         self._calib_canvas.draw_idle()
 
     # -- combo helpers --
