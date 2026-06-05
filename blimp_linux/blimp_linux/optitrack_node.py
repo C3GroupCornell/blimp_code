@@ -24,10 +24,10 @@ from scipy.spatial.transform import Rotation as R
 import math
 import re
 
-from NatNetClient import NatNetClient
+from blimp_linux.NatNetClient import NatNetClient
 
 SERVER_IP = "192.168.0.104"   # Motive PC IP (Can be found in OptiTrack software under data streaming panel)
-LOCAL_IP  = "192.168.0.101"   # This machine's IP (Can be found using "ip a" in terminal or on TPLink domain 192.168.0.1)
+LOCAL_IP  = "192.168.0.103"   # This machine's IP (Can be found using "ip a" in terminal or on TPLink domain 192.168.0.1)
 
 data_lock = threading.Lock()
 AGENT_PATTERN = re.compile(r"^agent_\d+$")

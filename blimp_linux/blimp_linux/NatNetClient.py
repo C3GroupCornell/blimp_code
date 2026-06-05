@@ -72,13 +72,11 @@ class NatNetClient:
 
         # print(f'Data socket result: {result})
 
-        result.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)     
-        result.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(self.multicastAddress) + socket.inet_aton(self.localIPAddress))
+        result.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        result.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-        result.bind( (self.localIPAddress, port) )
+        result.bind( ("", port) )
         result.settimeout(0.1)
-        # result.bind((self.localIPAddress, 0))
-        # result.bind(("0.0.0.0",port))
 
         return result
 
@@ -513,6 +511,7 @@ class NatNetClient:
             print( "Could not open command channel" )
             exit
 
+        print(f"Data socket: {self.dataSocket}")
         # Create a separate thread for receiving data packets
         self.dataThread = Thread( target = self.__dataThreadFunction, args = (self.dataSocket, ), daemon=True)
         self.dataThread.start()

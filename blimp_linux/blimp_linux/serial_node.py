@@ -63,14 +63,15 @@ class SerialNode(Node):
             close = False
         else:
             self.get_logger().info(f"Opening serial port {com} for agent {uid}")
-            ser = serial.Serial(com,912600,timeout=0.1) #Before setup complete, when "Verify Setup" is clicked
+            ser = serial.Serial(com,921600,timeout=0.1) #Before setup complete, when "Verify Setup" is clicked
             close = True
         msg_ = 'MOTORCTL'
         ns = f'agent_{uid}' # Blimp namespace
-        mtrs =[0.0 if abs(d)<1e-6 else d/abs(d)*min(0.9,abs(round(d,2))) for d in voltages.data] #Motor voltages, clipped
+        mtrs =[0.0 if abs(d)<1e-6 else round(d/abs(d)*min(0.9,abs(round(d,2))),2) for d in voltages.data] #Motor voltages, clipped
+        self.get_logger().info(f"Publishing voltages: {mtrs}")
         pwm_1, pwm_2, pwm_3, pwm_4, pwm_5, pwm_6 = mtrs
         signal = 'n'
-        to_send = f'{uid},{msg_},{pwm_1},{pwm_2},{pwm_3},{pwm_4},{pwm_5},{pwm_6},{signal},\n' #Newline sends command
+        to_send = f'{uid},{msg_},{round(pwm_1,2)},{round(pwm_2,2)},{round(pwm_3,2)},{round(pwm_4,2)},{round(pwm_5,2)},{round(pwm_6,2)},{signal},\n' #Newline sends command
         to_send = to_send.encode('utf-8')
 
         # self.get_logger().info(f'Receiving commands at {round(1/(time.time()-self.last_t),2)}Hz')
@@ -79,6 +80,7 @@ class SerialNode(Node):
         ser.flush()  # flush buffer, commands send instantly and we do not want buildup
         if close:
             ser.close()
+        time.sleep(0.01)
 
 
     # Telemetry read function for when sensors are used
@@ -107,8 +109,8 @@ class SerialNode(Node):
                 # t0 = t
     
     def shutdown(self):
-        for ns in list(self.mapping_dict.keys()):
-            ser = self.mapping_dict[ns]
+        for ns in list(self.serials.keys()):
+            ser = self.serials[ns]
             for i in range(5): #Send multiple times in case the first one gets lost
                 to_send = f'0,MOTORCTRL,0.0,0.0,0.0,0.0,0.0,0.0,n,\n'
                 to_send = to_send.encode('utf-8')

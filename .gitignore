@@ -12,6 +12,10 @@ blimp_msgs/log
 blimp_clean/build
 blimp_clean/install
 blimp_clean/log
+blimp_linux/install
+blimp_linux/log
+blimp_linux/build
+gscode_bmcb
 *.png
 blimp/
 __pycache__/

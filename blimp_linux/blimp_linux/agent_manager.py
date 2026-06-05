@@ -2,14 +2,12 @@ import threading
 import traceback
 import rclpy
 from rclpy.executors import MultiThreadedExecutor, ExternalShutdownException
-from blimp_clean.low_level_controller import ControllerNode
-from blimp_clean.param_est_fixed_v import ParamEstimation
+from blimp_linux.low_level_controller import ControllerNode
 
 class AgentManager(object):
     def __init__(self):
         self.executor = MultiThreadedExecutor()
         self.agents = {}
-        self.param_estimators = {}
         self._thread = None
 
     def initialize_blimps(self, ids, coms, goals):
@@ -17,30 +15,21 @@ class AgentManager(object):
         self._stop_existing()
         for id_, com in zip(ids, coms):
             self.spawn_agent(id_, com)
-            self.spawn_param_estimator(id_, com)
         self.start()  # spin only after all blimps are registered
 
     def _stop_existing(self):
         """Shut down running agents and reset executor so initialize can be called again."""
-        if self.agents or self.param_estimators:
+        if self.agents:
             self.executor.shutdown(timeout_sec=1.0)
             for node in self.agents.values():
                 node.destroy_node()
-            for node in self.param_estimators.values():
-                node.destroy_node()
             self.agents.clear()
-            self.param_estimators.clear()
             self.executor = MultiThreadedExecutor()
             self._thread = None
 
     def spawn_agent(self, agent_id: int, com_port: str):
         node = ControllerNode(f'agent_{agent_id}', com_port)
         self.agents[agent_id] = node
-        self.executor.add_node(node)
-
-    def spawn_param_estimator(self, agent_id: int, com_port: str):
-        node = ParamEstimation(f'agent_{agent_id}', com_port)
-        self.param_estimators[agent_id] = node
         self.executor.add_node(node)
 
     def destroy_agent(self, agent_id: str):
